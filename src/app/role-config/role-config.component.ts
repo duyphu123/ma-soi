@@ -18,6 +18,8 @@ interface ConfirmCardItem {
   name: string;
   img: string;
   count?: number;
+  team?: CardTeam;
+  custom?: boolean;
 }
 
 @Component({
@@ -35,6 +37,7 @@ export class RoleConfigComponent implements AfterViewInit {
   showAddCardModal = false;
   addCardTeam: CardTeam = 'wolf';
   addCardName = '';
+  addCardError = '';
   configPanelHeight = 0;
   configPanelTop = 0;
   private configPanelStartTop = 0;
@@ -210,7 +213,7 @@ export class RoleConfigComponent implements AfterViewInit {
     });
 
     this.extraWolfCards.filter(card => card.enabled).forEach(card => {
-      items.push({ name: card.name, img: card.img });
+      items.push({ name: card.name, img: card.img, team: card.team, custom: card.custom });
     });
 
     return items;
@@ -242,7 +245,7 @@ export class RoleConfigComponent implements AfterViewInit {
     });
 
     this.extraVillagerCards.filter(card => card.enabled).forEach(card => {
-      items.push({ name: card.name, img: card.img });
+      items.push({ name: card.name, img: card.img, team: card.team, custom: card.custom });
     });
 
     return items;
@@ -428,7 +431,9 @@ export class RoleConfigComponent implements AfterViewInit {
     this.showAddCardModal = false;
     this.form.reset(this.defaults);
     this.gameCfg.clearExtraCards(this.activeMode);
+    this.gameCfg.clearHistory(this.activeMode);
     this.gameCfg.setConfig(this.form.value as RoleConfig, this.activeMode);
+    this.reloadHistory();
   }
 
   confirm() {
@@ -451,27 +456,42 @@ export class RoleConfigComponent implements AfterViewInit {
     this.showConfirmModal = false;
     this.addCardTeam = team;
     this.addCardName = '';
+    this.addCardError = '';
     this.showAddCardModal = true;
   }
 
   closeAddCardModal() {
     this.showAddCardModal = false;
     this.addCardName = '';
+    this.addCardError = '';
+  }
+
+  onAddCardNameChange(value: string) {
+    this.addCardName = value;
+    this.addCardError = '';
   }
 
   submitAddCard() {
+    if (this.gameCfg.hasExtraCardName(this.addCardName, this.activeMode)) {
+      this.addCardError = 'Tên lá bài custom đã tồn tại';
+      return;
+    }
+
     const created = this.gameCfg.addExtraCard(this.addCardName, this.addCardTeam, this.activeMode);
     if (!created) return;
     this.closeAddCardModal();
   }
 
-  toggleExtraCard(card: ExtraCardDef) {
+  toggleExtraCard(card: ExtraCardDef, event?: Event) {
+    if (event) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
     this.gameCfg.setExtraCardEnabled(card.id, card.team, !card.enabled, this.activeMode);
   }
 
   submitConfirmedGame() {
     this.showConfirmModal = false;
-    this.clearHistory();
     this.gameCfg.setMode(this.activeMode);
     this.gameCfg.setConfig(this.form.value as RoleConfig, this.activeMode);
     this.router.navigateByUrl('/chon-bai');
@@ -492,6 +512,10 @@ export class RoleConfigComponent implements AfterViewInit {
     return role.key;
   }
 
+  trackExtraCard(_: number, card: ExtraCardDef) {
+    return card.id;
+  }
+
   thumbPath(fileName: string): string {
     return `assets/card2/${fileName}`;
   }
@@ -510,6 +534,6 @@ export class RoleConfigComponent implements AfterViewInit {
   }
 
   private isWolfRoleName(name: string): boolean {
-    return this.wolfRoles.some(role => role.name === name) || name === 'Sói';
+    return this.gameCfg.isWolfCardName(name, this.activeMode);
   }
 }

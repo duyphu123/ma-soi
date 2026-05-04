@@ -15,8 +15,9 @@ html, body {
   min-height: 100dvh;
   background: var(--ww-bg);
   touch-action: auto;
-  overscroll-behavior-y: none;
-  overscroll-behavior-x: none;
+  overscroll-behavior-y: auto;
+  overscroll-behavior-x: auto;
+  overflow-y: auto;
   overflow-x: hidden;
 }
 
@@ -32,7 +33,7 @@ body {
 app-root {
   display: block;
   min-height: 100dvh;
-  overscroll-behavior-y: none;
+  overflow-y: visible;
   overflow-x: hidden;
 }
 

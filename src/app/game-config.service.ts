@@ -54,6 +54,7 @@ export interface ExtraCardDef {
   team: CardTeam;
   img: string;
   enabled: boolean;
+  custom?: boolean;
 }
 
 export type SpecialRoleKey = Exclude<keyof RoleConfig, 'soi' | 'dan'>;
@@ -146,8 +147,17 @@ const BASE_FILE_MAP: Record<string, string> = {
   'Dân': 'dan.jpg',
 };
 
+interface PersistedGameConfigState {
+  currentMode: GameMode;
+  configs: Record<GameMode, RoleConfig | null>;
+  histories: Record<GameMode, Array<Omit<HistoryItem, 'at'> & { at: string }>>;
+  orderSeqs: Record<GameMode, number>;
+  extraCards: Record<GameMode, Record<CardTeam, ExtraCardDef[]>>;
+}
+
 @Injectable({ providedIn: 'root' })
 export class GameConfigService {
+  private readonly storageKey = 'werewolf-game-config-state-v1';
   private currentMode: GameMode = 'ultimate';
   private configs: Record<GameMode, RoleConfig | null> = {
     ultimate: null,
@@ -166,8 +176,13 @@ export class GameConfigService {
     character: { wolf: [], villager: [] },
   };
 
+  constructor() {
+    this.loadState();
+  }
+
   setMode(mode: GameMode) {
     this.currentMode = mode;
+    this.saveState();
   }
 
   getMode(): GameMode {
@@ -204,12 +219,16 @@ export class GameConfigService {
   }
 
   getExtraCards(team: CardTeam, mode: GameMode = this.currentMode): ExtraCardDef[] {
-    return this.extraCards[mode][team].map(card => ({ ...card }));
+    return this.extraCards[mode][team].map(card => ({
+      ...card,
+      img: this.buildExtraCardImage(card.name, card.team),
+    }));
   }
 
   addExtraCard(name: string, team: CardTeam, mode: GameMode = this.currentMode): ExtraCardDef | null {
-    const trimmed = (name || '').trim().slice(0, 16);
+    const trimmed = (name || '').trim().slice(0, 10);
     if (!trimmed) return null;
+    if (this.hasExtraCardName(trimmed, mode)) return null;
 
     const card: ExtraCardDef = {
       id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
@@ -217,9 +236,11 @@ export class GameConfigService {
       team,
       img: this.buildExtraCardImage(trimmed, team),
       enabled: true,
+      custom: true,
     };
 
     this.extraCards[mode][team] = this.extraCards[mode][team].concat(card);
+    this.saveState();
     return { ...card };
   }
 
@@ -227,14 +248,17 @@ export class GameConfigService {
     this.extraCards[mode][team] = this.extraCards[mode][team].map(card =>
       card.id === id ? { ...card, enabled } : card
     );
+    this.saveState();
   }
 
   clearExtraCards(mode: GameMode = this.currentMode) {
     this.extraCards[mode] = { wolf: [], villager: [] };
+    this.saveState();
   }
 
   setConfig(cfg: RoleConfig, mode: GameMode = this.currentMode) {
     this.configs[mode] = { ...cfg };
+    this.saveState();
   }
 
   getConfig(mode: GameMode = this.currentMode): RoleConfig | null {
@@ -286,11 +310,13 @@ export class GameConfigService {
       card,
       at: new Date(),
     });
+    this.saveState();
   }
 
   updateHistoryName(order: number, name: string, mode: GameMode = this.currentMode) {
     const item = this.histories[mode].find(x => x.order === order);
     if (item) item.playerName = name;
+    this.saveState();
   }
 
   getHistory(mode: GameMode = this.currentMode): HistoryItem[] {
@@ -300,6 +326,16 @@ export class GameConfigService {
   clearHistory(mode: GameMode = this.currentMode) {
     this.histories[mode] = [];
     this.orderSeqs[mode] = 0;
+    this.saveState();
+  }
+
+  hasExtraCardName(name: string, mode: GameMode = this.currentMode): boolean {
+    const normalized = this.normalizeExtraCardName(name);
+    if (!normalized) return false;
+
+    return (['wolf', 'villager'] as CardTeam[]).some(team =>
+      this.extraCards[mode][team].some(card => this.normalizeExtraCardName(card.name) === normalized)
+    );
   }
 
   private imgOf(name: string): string {
@@ -309,12 +345,10 @@ export class GameConfigService {
   }
 
   private buildExtraCardImage(name: string, team: CardTeam): string {
-    const safeName = (name || '').slice(0, 16);
-    const sideLabel = team === 'wolf' ? 'PHE SOI' : 'PHE DAN';
-    const accent = team === 'wolf' ? '#ff8f8f' : '#8fffa8';
-    const accentSoft = team === 'wolf' ? '#55252a' : '#214232';
+    const safeName = (name || '').slice(0, 10);
     const border = team === 'wolf' ? '#8f2f2f' : '#2f8f52';
-    const glow = team === 'wolf' ? 'rgba(255,143,143,0.28)' : 'rgba(143,255,168,0.24)';
+    const orb = team === 'wolf' ? '#7a2d35' : '#28533b';
+    const innerGlow = team === 'wolf' ? '#b74c5a' : '#4fb874';
     const titleLines = this.buildExtraCardTitleLines(safeName);
 
     const svg = `
@@ -330,24 +364,24 @@ export class GameConfigService {
             <stop offset="45%" stop-color="#9d8760"/>
             <stop offset="100%" stop-color="#e9dbb8"/>
           </linearGradient>
-          <filter id="softGlow" x="-20%" y="-20%" width="140%" height="140%">
-            <feDropShadow dx="0" dy="0" stdDeviation="8" flood-color="${glow}"/>
+          <radialGradient id="orbGlow" cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stop-color="${innerGlow}" stop-opacity="0.9"/>
+            <stop offset="60%" stop-color="${orb}" stop-opacity="0.72"/>
+            <stop offset="100%" stop-color="${orb}" stop-opacity="0"/>
+          </radialGradient>
+          <filter id="softShadow" x="-20%" y="-20%" width="140%" height="140%">
+            <feDropShadow dx="0" dy="8" stdDeviation="10" flood-color="#000000" flood-opacity="0.35"/>
           </filter>
         </defs>
         <rect x="8" y="8" width="224" height="344" rx="18" fill="#0c0d11" stroke="url(#frame)" stroke-width="6"/>
         <rect x="16" y="16" width="208" height="328" rx="14" fill="url(#bg)" stroke="${border}" stroke-width="1.8"/>
-        <rect x="26" y="26" width="188" height="308" rx="10" fill="rgba(255,255,255,0.02)" stroke="rgba(255,255,255,0.08)" stroke-width="1.1"/>
-        <rect x="38" y="40" width="164" height="28" rx="14" fill="${accentSoft}" opacity="0.95"/>
-        <text x="120" y="59" text-anchor="middle" fill="${accent}" font-size="13" font-family="Arial, sans-serif" font-weight="700" letter-spacing="1.3">${sideLabel}</text>
-        <g filter="url(#softGlow)">
-          <circle cx="120" cy="180" r="56" fill="${accentSoft}" opacity="0.72"/>
+        <rect x="26" y="26" width="188" height="308" rx="10" fill="#ffffff" fill-opacity="0.02" stroke="#ffffff" stroke-opacity="0.08" stroke-width="1.1"/>
+        <g filter="url(#softShadow)">
+          <circle cx="120" cy="180" r="62" fill="url(#orbGlow)"/>
         </g>
-        <text x="120" y="170" text-anchor="middle" fill="#f5efe7" font-size="22" font-family="Arial, sans-serif" font-weight="800">
+        <text x="120" y="180" text-anchor="middle" fill="#f5efe7" font-size="24" font-family="Arial, sans-serif" font-weight="800">
           ${titleLines}
         </text>
-        <path d="M68 250 L120 224 L172 250" fill="none" stroke="${accent}" stroke-width="2.4" stroke-linecap="round" opacity="0.75"/>
-        <path d="M78 262 L120 242 L162 262" fill="none" stroke="rgba(255,255,255,0.26)" stroke-width="1.3" stroke-linecap="round"/>
-        <text x="120" y="306" text-anchor="middle" fill="rgba(255,255,255,0.36)" font-size="11" font-family="Arial, sans-serif" font-weight="700" letter-spacing="2">CUSTOM CARD</text>
       </svg>
     `;
 
@@ -379,7 +413,7 @@ export class GameConfigService {
     }
 
     return limited
-      .map((line, index) => `<tspan x="120" dy="${index === 0 ? 0 : 28}">${this.escapeSvgText(line)}</tspan>`)
+      .map((line, index) => `<tspan x="120" dy="${index === 0 ? -14 : 28}">${this.escapeSvgText(line)}</tspan>`)
       .join('');
   }
 
@@ -388,5 +422,87 @@ export class GameConfigService {
       .replace(/&/g, '&amp;')
       .replace(/</g, '&lt;')
       .replace(/>/g, '&gt;');
+  }
+
+  private normalizeExtraCardName(value: string): string {
+    return (value || '').trim().slice(0, 10).toLocaleLowerCase();
+  }
+
+  private saveState() {
+    const storage = this.getStorage();
+    if (!storage) return;
+
+    const state: PersistedGameConfigState = {
+      currentMode: this.currentMode,
+      configs: this.configs,
+      histories: {
+        ultimate: this.histories.ultimate.map(item => ({ ...item, at: item.at.toISOString() })),
+        character: this.histories.character.map(item => ({ ...item, at: item.at.toISOString() })),
+      },
+      orderSeqs: this.orderSeqs,
+      extraCards: this.extraCards,
+    };
+
+    storage.setItem(this.storageKey, JSON.stringify(state));
+  }
+
+  private loadState() {
+    const storage = this.getStorage();
+    if (!storage) return;
+
+    const raw = storage.getItem(this.storageKey);
+    if (!raw) return;
+
+    try {
+      const parsed = JSON.parse(raw) as Partial<PersistedGameConfigState>;
+
+      if (parsed.currentMode === 'ultimate' || parsed.currentMode === 'character') {
+        this.currentMode = parsed.currentMode;
+      }
+
+      if (parsed.configs) {
+        this.configs = {
+          ultimate: parsed.configs.ultimate || null,
+          character: parsed.configs.character || null,
+        };
+      }
+
+      if (parsed.histories) {
+        this.histories = {
+          ultimate: (parsed.histories.ultimate || []).map(item => ({ ...item, at: new Date(item.at) })),
+          character: (parsed.histories.character || []).map(item => ({ ...item, at: new Date(item.at) })),
+        };
+      }
+
+      if (parsed.orderSeqs) {
+        this.orderSeqs = {
+          ultimate: Number(parsed.orderSeqs.ultimate || 0),
+          character: Number(parsed.orderSeqs.character || 0),
+        };
+      }
+
+      if (parsed.extraCards) {
+        this.extraCards = {
+          ultimate: {
+            wolf: (parsed.extraCards.ultimate && parsed.extraCards.ultimate.wolf) || [],
+            villager: (parsed.extraCards.ultimate && parsed.extraCards.ultimate.villager) || [],
+          },
+          character: {
+            wolf: (parsed.extraCards.character && parsed.extraCards.character.wolf) || [],
+            villager: (parsed.extraCards.character && parsed.extraCards.character.villager) || [],
+          },
+        };
+      }
+    } catch {
+      storage.removeItem(this.storageKey);
+    }
+  }
+
+  private getStorage(): Storage | null {
+    try {
+      return typeof localStorage === 'undefined' ? null : localStorage;
+    } catch {
+      return null;
+    }
   }
 }

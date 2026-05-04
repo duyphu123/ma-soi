@@ -1,4 +1,4 @@
-import { Component, ElementRef, OnInit, ViewChild } from '@angular/core';
+import { AfterViewInit, Component, ElementRef, OnInit, ViewChild } from '@angular/core';
 import { Router } from '@angular/router';
 import { Card, GameConfigService } from '../game-config.service';
 
@@ -7,15 +7,14 @@ import { Card, GameConfigService } from '../game-config.service';
   templateUrl: './card-draw.component.html',
   styleUrls: ['./card-draw.component.scss']
 })
-export class CardDrawComponent implements OnInit {
+export class CardDrawComponent implements OnInit, AfterViewInit {
   queue: Card[] = [];
   revealed: Card | null = null;
   showDoneModal = false;
   readonly backImg = 'assets/cards/back2.jpg';
   @ViewChild('hideButton') hideButton?: ElementRef;
   @ViewChild('actionAnchor') actionAnchor?: ElementRef;
-
-  private currentMode = this.cfg.getMode();
+  private scrollRetryToken = 0;
 
   constructor(private cfg: GameConfigService, private router: Router) {}
 
@@ -26,13 +25,16 @@ export class CardDrawComponent implements OnInit {
       return;
     }
 
-    this.currentMode = this.cfg.getMode();
     const full = this.cfg.buildDeck();
-    this.queue = this.shuffleBalanced(full);
+    this.queue = this.shuffleDeck(full);
     this.revealed = null;
     this.showDoneModal = false;
     this.preloadFrontImages();
-    setTimeout(() => this.scrollToActionZone(), 0);
+    this.scheduleScrollToActionZone();
+  }
+
+  ngAfterViewInit(): void {
+    this.scheduleScrollToActionZone();
   }
 
   get remaining(): number {
@@ -49,7 +51,7 @@ export class CardDrawComponent implements OnInit {
     const card = this.queue.shift()!;
     this.revealed = card;
     this.cfg.addHistory(card);
-    setTimeout(() => this.scrollToActionZone(), 0);
+    this.scheduleScrollToActionZone();
   }
 
   hideCurrent() {
@@ -62,9 +64,8 @@ export class CardDrawComponent implements OnInit {
     const config = this.cfg.getConfig();
     if (!config) return;
 
-    this.currentMode = this.cfg.getMode();
     const full = this.cfg.buildDeck();
-    this.queue = this.shuffleBalanced(full);
+    this.queue = this.shuffleDeck(full);
     this.revealed = null;
     this.showDoneModal = false;
     this.preloadFrontImages();
@@ -88,59 +89,17 @@ export class CardDrawComponent implements OnInit {
     (e.target as HTMLImageElement).src = 'assets/card2/dan.jpg';
   }
 
-  private isWolfCard(name: string): boolean {
-    return this.cfg.isWolfCardName(name, this.currentMode);
+  onCardVisualReady() {
+    this.scheduleScrollToActionZone();
   }
 
-  private isTwinCard(card: Card): boolean {
-    return /sinhdoi\.jpg$/i.test(card.img || '');
-  }
-
-  private adjacencyPenalty(deck: Card[]): number {
-    let score = 0;
-    let run = 1;
-    const sameGroup = (a: Card, b: Card) => this.isWolfCard(a.name) === this.isWolfCard(b.name);
-
-    for (let i = 1; i < deck.length; i++) {
-      if (this.isTwinCard(deck[i]) && this.isTwinCard(deck[i - 1])) {
-        score += 50;
-      }
-
-      if (sameGroup(deck[i], deck[i - 1])) {
-        run++;
-        if (run === 3) score += 2;
-        else if (run >= 4) score += 5;
-      } else {
-        run = 1;
-      }
+  private shuffleDeck(input: Card[]): Card[] {
+    const shuffled = input.slice();
+    for (let i = shuffled.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
     }
-
-    return score;
-  }
-
-  private shuffleBalanced(input: Card[], tries = 200): Card[] {
-    const candidates: Array<{ deck: Card[]; score: number }> = [];
-    let bestScore = Number.POSITIVE_INFINITY;
-
-    for (let t = 0; t < tries; t++) {
-      const shuffled = input.slice();
-      for (let i = shuffled.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-      }
-
-      const score = this.adjacencyPenalty(shuffled);
-      candidates.push({ deck: shuffled, score });
-      if (score < bestScore) {
-        bestScore = score;
-      }
-    }
-
-    const acceptableThreshold = bestScore + 2;
-    const acceptable = candidates.filter(candidate => candidate.score <= acceptableThreshold);
-    const pool = acceptable.length ? acceptable : candidates;
-    const picked = pool[Math.floor(Math.random() * pool.length)];
-    return picked ? picked.deck : input.slice();
+    return shuffled;
   }
 
   goBack() {
@@ -159,17 +118,37 @@ export class CardDrawComponent implements OnInit {
     this.showDoneModal = true;
   }
 
+  private scheduleScrollToActionZone() {
+    const token = ++this.scrollRetryToken;
+    const attempt = (remaining: number) => {
+      if (token !== this.scrollRetryToken) return;
+
+      const done = this.scrollToActionZone();
+      if (done || remaining <= 0) return;
+
+      setTimeout(() => attempt(remaining - 1), 120);
+    };
+
+    requestAnimationFrame(() => attempt(8));
+  }
+
   private scrollToActionZone() {
     const anchor = this.hideButton || this.actionAnchor;
-    if (!anchor) return;
+    if (!anchor) return false;
 
-    const rect = anchor.nativeElement.getBoundingClientRect();
+    const el = anchor.nativeElement as HTMLElement;
+    const rect = el.getBoundingClientRect();
     const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0;
-    const targetTop = window.pageYOffset + rect.bottom - viewportHeight + 24;
+    const alreadyVisible = rect.top >= 0 && rect.bottom <= viewportHeight - 8;
+    if (alreadyVisible) return true;
 
-    window.scrollTo({
-      top: Math.max(0, Math.round(targetTop)),
-      behavior: 'smooth'
+    el.scrollIntoView({
+      behavior: 'smooth',
+      block: 'end',
+      inline: 'nearest'
     });
+    window.scrollBy({ top: 10, behavior: 'smooth' });
+
+    return false;
   }
 }

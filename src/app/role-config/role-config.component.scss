@@ -452,11 +452,12 @@
 
 .custom-role-thumb {
   display: flex;
-  flex-direction: column;
-  justify-content: space-between;
+  align-items: center;
+  justify-content: center;
   width: 100%;
-  min-height: 108px;
-  padding: 8px 8px 10px;
+  aspect-ratio: 260 / 380;
+  min-height: 0;
+  padding: 10px 8px;
   border-radius: 8px;
   border: 2px solid rgba(217, 200, 161, 0.7);
   background:
@@ -482,23 +483,18 @@
 }
 
 .custom-role-team {
-  color: rgba(245, 239, 231, 0.7);
-  font-size: 8px;
-  font-weight: 700;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  text-align: center;
+  display: none;
 }
 
 .custom-role-title {
   display: flex;
   align-items: center;
   justify-content: center;
-  flex: 1;
+  width: 100%;
   color: #f5efe7;
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 800;
-  line-height: 1.15;
+  line-height: 1.2;
   text-align: center;
   word-break: break-word;
 }
@@ -573,10 +569,9 @@
 }
 
 .confirm-modal-head {
-  display: grid;
-  grid-template-columns: 42px 1fr 42px;
+  display: flex;
+  justify-content: center;
   align-items: center;
-  gap: 10px;
   margin-bottom: 14px;
 }
 
@@ -584,44 +579,6 @@
   text-align: center;
   font-size: 26px;
   line-height: 1.15;
-}
-
-.confirm-icon-btn {
-  width: 42px;
-  height: 42px;
-  padding: 0;
-  border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  background: rgba(255, 255, 255, 0.04);
-  color: #f5efe7;
-  font-size: 22px;
-  font-weight: 800;
-  line-height: 1;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
-}
-
-.confirm-icon-btn-back {
-  color: rgba(255, 255, 255, 0.86);
-  background: rgba(255, 255, 255, 0.03);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.05),
-    0 6px 16px rgba(0, 0, 0, 0.18);
-}
-
-.confirm-icon-btn-back svg {
-  display: block;
-}
-
-.confirm-icon-btn-submit {
-  background: linear-gradient(180deg, #f0a33b, #c07a2c);
-  border-color: rgba(255, 214, 153, 0.3);
-  color: #fffaf2;
-  box-shadow:
-    0 8px 18px rgba(192, 122, 44, 0.28),
-    inset 0 1px 0 rgba(255, 255, 255, 0.18);
 }
 
 .confirm-stats {
@@ -697,28 +654,104 @@
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 8px;
+  align-items: start;
 }
 
 .confirm-card {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-rows: auto minmax(30px, auto);
   gap: 6px;
+  min-width: 0;
+  align-self: start;
 }
 
 .confirm-card-thumb-wrap {
   position: relative;
+  aspect-ratio: 260 / 380;
+  width: 100%;
   padding: 3px;
   border-radius: 10px;
   background: rgba(255, 255, 255, 0.04);
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.03);
+  box-sizing: border-box;
 }
 
 .confirm-card-thumb {
   display: block;
   width: 100%;
-  height: auto;
+  height: 100%;
+  object-fit: cover;
   border-radius: 7px;
   box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+  box-sizing: border-box;
+}
+
+.confirm-custom-card {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  padding: 0;
+  border-radius: 7px;
+  box-sizing: border-box;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(0, 0, 0, 0.28)),
+    linear-gradient(180deg, #262127, #0d0f14);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.08),
+    0 4px 10px rgba(0, 0, 0, 0.2);
+}
+
+.confirm-custom-card::before {
+  content: '';
+  position: absolute;
+  inset: 9%;
+  border-radius: 999px;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.16) 0%, rgba(255, 255, 255, 0.04) 34%, rgba(255, 255, 255, 0) 68%);
+  opacity: 0.55;
+}
+
+.confirm-custom-card::after {
+  content: '';
+  position: absolute;
+  inset: 5px;
+  border-radius: 5px;
+  border: 2px solid rgba(217, 200, 161, 0.72);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.08),
+    inset 0 0 0 2px rgba(255, 255, 255, 0.03);
+}
+
+.confirm-custom-card-wolf {
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.08),
+    inset 0 0 24px rgba(143, 47, 47, 0.16),
+    0 4px 10px rgba(0, 0, 0, 0.2);
+}
+
+.confirm-custom-card-villager {
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.08),
+    inset 0 0 24px rgba(47, 143, 82, 0.14),
+    0 4px 10px rgba(0, 0, 0, 0.2);
+}
+
+.confirm-custom-card-title {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  padding: 0 6px;
+  color: #f5efe7;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.15;
+  text-align: center;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.45);
 }
 
 .confirm-card-count {
@@ -736,11 +769,24 @@
 }
 
 .confirm-card-name {
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  min-height: 30px;
+  width: 100%;
+  min-width: 0;
+  padding: 0 2px;
   color: #f5efe7;
   font-size: 11px;
   font-weight: 700;
   line-height: 1.2;
   text-align: center;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+.confirm-card-custom-item .confirm-card-name {
+  padding-top: 3px;
 }
 
 .wolf-section .confirm-card:not(.confirm-card-base) .confirm-card-name {
@@ -776,9 +822,14 @@
 
 .confirm-actions {
   display: flex;
-  justify-content: flex-end;
+  justify-content: center;
   gap: 10px;
   margin-top: 18px;
+  padding-top: 4px;
+}
+
+.confirm-actions button {
+  min-width: 110px;
 }
 
 .add-card-modal {
@@ -807,6 +858,21 @@
   max-width: 220px;
   margin: 0 auto;
   padding-inline: 12px;
+}
+
+.add-card-input.input-error {
+  border-color: rgba(239, 83, 80, 0.9);
+  box-shadow: 0 0 0 3px rgba(239, 83, 80, 0.16);
+}
+
+.add-card-error {
+  width: 100%;
+  max-width: 220px;
+  margin: 8px auto 0;
+  color: #ff8f8f;
+  font-size: 12px;
+  line-height: 1.35;
+  text-align: left;
 }
 
 @media (max-width: 560px) {

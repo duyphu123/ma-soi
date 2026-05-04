@@ -51,13 +51,7 @@
 <div *ngIf="showConfirmModal" class="confirm-overlay" (click)="closeConfirmModal()">
   <div class="confirm-modal" (click)="$event.stopPropagation()">
     <div class="confirm-modal-head">
-      <button class="confirm-icon-btn confirm-icon-btn-back" type="button" (click)="closeConfirmModal()" aria-label="Quay lại">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-          <path d="M15 18L9 12L15 6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
-        </svg>
-      </button>
       <h3>Confirm</h3>
-      <button class="confirm-icon-btn confirm-icon-btn-submit" type="button" (click)="submitConfirmedGame()" aria-label="Xác nhận">&#10003;</button>
     </div>
 
     <div class="confirm-stats">
@@ -79,9 +73,12 @@
       <h4>Các lá bài phe sói</h4>
       <div class="confirm-card-grid" *ngIf="confirmWolfItems.length; else noWolfCards">
         <div class="confirm-card-row">
-          <div class="confirm-card" *ngFor="let card of confirmWolfItems" [class.confirm-card-base]="card.count">
+          <div class="confirm-card" *ngFor="let card of confirmWolfItems" [class.confirm-card-base]="card.count" [class.confirm-card-custom-item]="card.custom">
             <div class="confirm-card-thumb-wrap">
-              <img class="confirm-card-thumb" [src]="card.img" [alt]="card.name" loading="eager" decoding="sync" (error)="onThumbError($event)" />
+              <img *ngIf="!card.custom" class="confirm-card-thumb" [src]="card.img" [alt]="card.name" loading="eager" decoding="sync" (error)="onThumbError($event)" />
+              <div *ngIf="card.custom" class="confirm-card-thumb confirm-custom-card" [class.confirm-custom-card-wolf]="card.team === 'wolf'" [class.confirm-custom-card-villager]="card.team === 'villager'">
+                <span class="confirm-custom-card-title">{{ card.name }}</span>
+              </div>
               <span class="confirm-card-count" *ngIf="card.count">x{{ card.count }}</span>
             </div>
             <div class="confirm-card-name">{{ card.name }}</div>
@@ -97,9 +94,12 @@
       <h4>Các lá bài phe dân</h4>
       <div class="confirm-card-grid" *ngIf="confirmVillagerItems.length; else noVillagerCards">
         <div class="confirm-card-row">
-          <div class="confirm-card" *ngFor="let card of confirmVillagerItems" [class.confirm-card-base]="card.count">
+          <div class="confirm-card" *ngFor="let card of confirmVillagerItems" [class.confirm-card-base]="card.count" [class.confirm-card-custom-item]="card.custom">
             <div class="confirm-card-thumb-wrap">
-              <img class="confirm-card-thumb" [src]="card.img" [alt]="card.name" loading="eager" decoding="sync" (error)="onThumbError($event)" />
+              <img *ngIf="!card.custom" class="confirm-card-thumb" [src]="card.img" [alt]="card.name" loading="eager" decoding="sync" (error)="onThumbError($event)" />
+              <div *ngIf="card.custom" class="confirm-card-thumb confirm-custom-card" [class.confirm-custom-card-wolf]="card.team === 'wolf'" [class.confirm-custom-card-villager]="card.team === 'villager'">
+                <span class="confirm-custom-card-title">{{ card.name }}</span>
+              </div>
               <span class="confirm-card-count" *ngIf="card.count">x{{ card.count }}</span>
             </div>
             <div class="confirm-card-name">{{ card.name }}</div>
@@ -111,6 +111,10 @@
       </ng-template>
     </div>
 
+    <div class="confirm-actions">
+      <button type="button" (click)="closeConfirmModal()">Quay lại</button>
+      <button class="btn-submit" type="button" (click)="submitConfirmedGame()">Xác nhận</button>
+    </div>
   </div>
 </div>
 
@@ -125,11 +129,14 @@
         id="extra-card-name"
         class="count-input add-card-input"
         type="text"
-        [(ngModel)]="addCardName"
+        [ngClass]="{ 'input-error': !!addCardError }"
+        [ngModel]="addCardName"
+        (ngModelChange)="onAddCardNameChange($event)"
         [ngModelOptions]="{ standalone: true }"
-        maxlength="16"
+        maxlength="10"
         autocomplete="off"
       />
+      <div class="add-card-error" *ngIf="addCardError">{{ addCardError }}</div>
     </div>
 
     <div class="confirm-actions">
@@ -166,7 +173,7 @@
         <div class="team-head">
           <div class="team-head-row">
             <h3>Phe Sói</h3>
-            <!-- <button class="team-add-btn" type="button" (click)="openAddCardModal('wolf')" aria-label="Thêm lá phe Sói">+</button> -->
+            <button class="team-add-btn" type="button" (click)="openAddCardModal('wolf')" aria-label="Thêm lá phe Sói">+</button>
           </div>
         </div>
 
@@ -180,9 +187,9 @@
             </span>
           </label>
 
-          <button class="role-card custom-role-card" type="button" *ngFor="let card of extraWolfCards" (click)="toggleExtraCard(card)">
+          <button class="role-card custom-role-card" type="button" *ngFor="let card of extraWolfCards; trackBy: trackExtraCard" (click)="toggleExtraCard(card, $event)">
             <span class="role-visual custom-role-visual" [class.custom-role-enabled]="card.enabled">
-              <span class="checkmark">âœ“</span>
+              <span class="checkmark">&#10003;</span>
               <span class="custom-role-thumb custom-role-thumb-wolf">
                 <span class="custom-role-team">Phe SÃ³i</span>
                 <span class="custom-role-title">{{ card.name }}</span>
@@ -196,7 +203,7 @@
         <div class="team-head">
           <div class="team-head-row">
             <h3>Phe Dân</h3>
-            <!-- <button class="team-add-btn" type="button" (click)="openAddCardModal('villager')" aria-label="Thêm lá phe Dân">+</button> -->
+            <button class="team-add-btn" type="button" (click)="openAddCardModal('villager')" aria-label="Thêm lá phe Dân">+</button>
           </div>
         </div>
 
@@ -210,9 +217,9 @@
             </span>
           </label>
 
-          <button class="role-card custom-role-card" type="button" *ngFor="let card of extraVillagerCards" (click)="toggleExtraCard(card)">
+          <button class="role-card custom-role-card" type="button" *ngFor="let card of extraVillagerCards; trackBy: trackExtraCard" (click)="toggleExtraCard(card, $event)">
             <span class="role-visual custom-role-visual" [class.custom-role-enabled]="card.enabled">
-              <span class="checkmark">âœ“</span>
+              <span class="checkmark">&#10003;</span>
               <span class="custom-role-thumb custom-role-thumb-villager">
                 <span class="custom-role-team">Phe DÃ¢n</span>
                 <span class="custom-role-title">{{ card.name }}</span>
@@ -256,3 +263,4 @@
     </div>
   </div>
 </div>
+

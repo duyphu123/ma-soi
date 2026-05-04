@@ -16,7 +16,10 @@
 
   <div class="card-zone">
     <img *ngIf="!revealed" class="card" [src]="backImg" alt="Mặt sau" (click)="onClickBack()" />
-    <img *ngIf="revealed" class="card" [src]="revealed.img" [alt]="revealed.name" (error)="onImgError($event)" />
+    <img *ngIf="revealed && !revealed.custom" class="card" [src]="revealed.img" [alt]="revealed.name" (error)="onImgError($event)" />
+    <div *ngIf="revealed?.custom" class="card custom-draw-card" [class.custom-draw-card-wolf]="revealed?.team === 'wolf'" [class.custom-draw-card-villager]="revealed?.team === 'villager'">
+      <span class="custom-draw-card-title">{{ revealed?.name }}</span>
+    </div>
   </div>
 
   <div class="actions" #actionAnchor>
