@@ -1,6 +1,6 @@
 import { AfterViewInit, Component, ElementRef, OnInit, ViewChild } from '@angular/core';
 import { Router } from '@angular/router';
-import { Card, GameConfigService } from '../game-config.service';
+import { Card, DrawState, GameConfigService } from '../game-config.service';
 
 @Component({
   selector: 'app-card-draw',
@@ -25,10 +25,13 @@ export class CardDrawComponent implements OnInit, AfterViewInit {
       return;
     }
 
-    const full = this.cfg.buildDeck();
-    this.queue = this.shuffleDeck(full);
-    this.revealed = null;
-    this.showDoneModal = false;
+    const savedDrawState = this.cfg.getDrawState();
+    if (savedDrawState) {
+      this.restoreDrawState(savedDrawState);
+    } else {
+      this.startNewDrawState();
+    }
+
     this.preloadFrontImages();
     this.scheduleScrollToActionZone();
   }
@@ -51,6 +54,7 @@ export class CardDrawComponent implements OnInit, AfterViewInit {
     const card = this.queue.shift()!;
     this.revealed = card;
     this.cfg.addHistory(card);
+    this.saveDrawState();
     this.scheduleScrollToActionZone();
   }
 
@@ -58,16 +62,14 @@ export class CardDrawComponent implements OnInit, AfterViewInit {
     if (!this.revealed) return;
     this.revealed = null;
     if (this.queue.length === 0) this.openDoneModal();
+    this.saveDrawState();
   }
 
   resetDeck() {
     const config = this.cfg.getConfig();
     if (!config) return;
 
-    const full = this.cfg.buildDeck();
-    this.queue = this.shuffleDeck(full);
-    this.revealed = null;
-    this.showDoneModal = false;
+    this.startNewDrawState();
     this.preloadFrontImages();
   }
 
@@ -103,19 +105,45 @@ export class CardDrawComponent implements OnInit, AfterViewInit {
   }
 
   goBack() {
+    this.cfg.allowConfigWhileDrawingOnce();
     this.router.navigateByUrl('/cau-hinh');
   }
 
   goToHistory() {
+    this.cfg.allowConfigWhileDrawingOnce();
     this.router.navigate(['/cau-hinh'], { queryParams: { tab: 'history' } });
   }
 
   closeDoneModal() {
     this.showDoneModal = false;
+    this.saveDrawState();
   }
 
   private openDoneModal() {
     this.showDoneModal = true;
+    this.saveDrawState();
+  }
+
+  private startNewDrawState() {
+    const full = this.cfg.buildDeck();
+    this.queue = this.shuffleDeck(full);
+    this.revealed = null;
+    this.showDoneModal = false;
+    this.saveDrawState();
+  }
+
+  private restoreDrawState(state: DrawState) {
+    this.queue = state.queue;
+    this.revealed = state.revealed;
+    this.showDoneModal = state.showDoneModal;
+  }
+
+  private saveDrawState() {
+    this.cfg.setDrawState({
+      queue: this.queue,
+      revealed: this.revealed,
+      showDoneModal: this.showDoneModal,
+    });
   }
 
   private scheduleScrollToActionZone() {

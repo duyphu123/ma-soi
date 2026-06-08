@@ -22,6 +22,35 @@ interface ConfirmCardItem {
   custom?: boolean;
 }
 
+const THUMB_FILE_MAP: { [key: string]: string } = {
+  'baove.jpg': 'baove.PNG',
+  'cao.jpg': 'cao.jpg',
+  'cungcoi.jpg': 'cungcoi.jpg',
+  'dan.jpg': 'dan.jpg',
+  'gau.jpg': 'gau.jpg',
+  'gialang.jpg': 'gialang.PNG',
+  'hoangtu.jpg': 'hoangtu.PNG',
+  'hunter.jpg': 'hunter.jpg',
+  'lieu.jpg': 'lieu.PNG',
+  'matngu.jpg': 'matngu.PNG',
+  'nhanban.jpg': 'nhanban.PNG',
+  'phanboi.jpg': 'phanboi.jpg',
+  'phuthuy.jpg': 'phuthuy.PNG',
+  'sinhdoi.jpg': 'sinhdoi.jpg',
+  'soi_bansoi.jpg': 'soi_bansoi.PNG',
+  'soi_con.jpg': 'soi_con.PNG',
+  'soi_ngu.jpg': 'soi_ngu.PNG',
+  'soi_nguoi.jpg': 'soi_nguoi.PNG',
+  'soi_nguyen.jpg': 'soi_nguyen.PNG',
+  'soi_thuong.jpg': 'soi_thuong.PNG',
+  'soi_tri.jpg': 'soi_tri.PNG',
+  'tamlinh.jpg': 'tamlinh.jpg',
+  'thaucam.jpg': 'thaucam.PNG',
+  'tientri.jpg': 'tientri.PNG',
+  'tietlo.jpg': 'tietlo.jpg',
+  'tusi.jpg': 'tusi.jpg',
+};
+
 @Component({
   selector: 'app-role-config',
   templateUrl: './role-config.component.html',
@@ -293,9 +322,19 @@ export class RoleConfigComponent implements AfterViewInit {
   ngOnInit(): void {
     this.activeMode = this.gameCfg.getMode();
     this.gameCfg.setMode(this.activeMode);
-    this.loadModeState();
 
     const tab = this.route.snapshot.queryParamMap.get('tab');
+    if (
+      tab !== 'history' &&
+      this.gameCfg.getDrawState(this.activeMode) &&
+      !this.gameCfg.consumeConfigWhileDrawingAllowance()
+    ) {
+      this.router.navigateByUrl('/chon-bai');
+      return;
+    }
+
+    this.loadModeState();
+
     if (tab === 'history') this.activeTab = 'history';
 
     this.sub = this.form.valueChanges
@@ -432,6 +471,7 @@ export class RoleConfigComponent implements AfterViewInit {
     this.form.reset(this.defaults);
     this.gameCfg.clearExtraCards(this.activeMode);
     this.gameCfg.clearHistory(this.activeMode);
+    this.gameCfg.clearDrawState(this.activeMode);
     this.gameCfg.setConfig(this.form.value as RoleConfig, this.activeMode);
     this.reloadHistory();
   }
@@ -494,6 +534,8 @@ export class RoleConfigComponent implements AfterViewInit {
     this.showConfirmModal = false;
     this.gameCfg.setMode(this.activeMode);
     this.gameCfg.setConfig(this.form.value as RoleConfig, this.activeMode);
+    this.gameCfg.clearHistory(this.activeMode);
+    this.gameCfg.clearDrawState(this.activeMode);
     this.router.navigateByUrl('/chon-bai');
   }
 
@@ -517,6 +559,12 @@ export class RoleConfigComponent implements AfterViewInit {
   }
 
   thumbPath(fileName: string): string {
+    const key = (fileName || '').toLowerCase();
+    const thumbFile = THUMB_FILE_MAP[key];
+    if (thumbFile) {
+      return `assets/card2-thumbs/${thumbFile}`;
+    }
+
     return `assets/card2/${fileName}`;
   }
 

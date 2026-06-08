@@ -48,6 +48,12 @@ export interface Card {
   custom?: boolean;
 }
 
+export interface DrawState {
+  queue: Card[];
+  revealed: Card | null;
+  showDoneModal: boolean;
+}
+
 export interface ExtraCardDef {
   id: string;
   name: string;
@@ -150,9 +156,10 @@ const BASE_FILE_MAP: Record<string, string> = {
 interface PersistedGameConfigState {
   currentMode: GameMode;
   configs: Record<GameMode, RoleConfig | null>;
-  histories: Record<GameMode, Array<Omit<HistoryItem, 'at'> & { at: string }>>;
+  histories: Record<GameMode, Array<{ order: number; card: Card; at: string; playerName?: string }>>;
   orderSeqs: Record<GameMode, number>;
   extraCards: Record<GameMode, Record<CardTeam, ExtraCardDef[]>>;
+  drawStates: Record<GameMode, DrawState | null>;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -175,6 +182,11 @@ export class GameConfigService {
     ultimate: { wolf: [], villager: [] },
     character: { wolf: [], villager: [] },
   };
+  private drawStates: Record<GameMode, DrawState | null> = {
+    ultimate: null,
+    character: null,
+  };
+  private allowConfigOnce = false;
 
   constructor() {
     this.loadState();
@@ -254,6 +266,30 @@ export class GameConfigService {
   clearExtraCards(mode: GameMode = this.currentMode) {
     this.extraCards[mode] = { wolf: [], villager: [] };
     this.saveState();
+  }
+
+  setDrawState(state: DrawState, mode: GameMode = this.currentMode) {
+    this.drawStates[mode] = this.cloneDrawState(state);
+    this.saveState();
+  }
+
+  getDrawState(mode: GameMode = this.currentMode): DrawState | null {
+    return this.cloneDrawState(this.drawStates[mode]);
+  }
+
+  clearDrawState(mode: GameMode = this.currentMode) {
+    this.drawStates[mode] = null;
+    this.saveState();
+  }
+
+  allowConfigWhileDrawingOnce() {
+    this.allowConfigOnce = true;
+  }
+
+  consumeConfigWhileDrawingAllowance(): boolean {
+    const allowed = this.allowConfigOnce;
+    this.allowConfigOnce = false;
+    return allowed;
   }
 
   setConfig(cfg: RoleConfig, mode: GameMode = this.currentMode) {
@@ -428,6 +464,20 @@ export class GameConfigService {
     return (value || '').trim().slice(0, 10).toLocaleLowerCase();
   }
 
+  private cloneCard(card: Card): Card {
+    return { ...card };
+  }
+
+  private cloneDrawState(state: DrawState | null): DrawState | null {
+    if (!state) return null;
+
+    return {
+      queue: (state.queue || []).map(card => this.cloneCard(card)),
+      revealed: state.revealed ? this.cloneCard(state.revealed) : null,
+      showDoneModal: !!state.showDoneModal,
+    };
+  }
+
   private saveState() {
     const storage = this.getStorage();
     if (!storage) return;
@@ -441,6 +491,10 @@ export class GameConfigService {
       },
       orderSeqs: this.orderSeqs,
       extraCards: this.extraCards,
+      drawStates: {
+        ultimate: this.cloneDrawState(this.drawStates.ultimate),
+        character: this.cloneDrawState(this.drawStates.character),
+      },
     };
 
     storage.setItem(this.storageKey, JSON.stringify(state));
@@ -491,6 +545,13 @@ export class GameConfigService {
             wolf: (parsed.extraCards.character && parsed.extraCards.character.wolf) || [],
             villager: (parsed.extraCards.character && parsed.extraCards.character.villager) || [],
           },
+        };
+      }
+
+      if (parsed.drawStates) {
+        this.drawStates = {
+          ultimate: this.cloneDrawState(parsed.drawStates.ultimate || null),
+          character: this.cloneDrawState(parsed.drawStates.character || null),
         };
       }
     } catch {
