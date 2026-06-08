@@ -64,18 +64,63 @@ export class RoleConfigComponent implements AfterViewInit {
   history: HistoryItem[] = [];
   showConfirmModal = false;
   showAddCardModal = false;
+  showHistoryCardModal = false;
   addCardTeam: CardTeam = 'wolf';
   addCardName = '';
   addCardError = '';
+  selectedHistoryItem: HistoryItem | null = null;
+  selectedPlayerName = '';
+  historyRotationDeg = 0;
+  isHistoryRotating = false;
   configPanelHeight = 0;
   configPanelTop = 0;
   private configPanelStartTop = 0;
   private panelRafId = 0;
+  private historyRotateLastPointerX = 0;
+  private historyRotateLastPointerY = 0;
+  private readonly historyRotateMinRadius = 36;
+  private readonly historyRotateMaxStep = 7;
 
   readonly modeTabs: Array<{ key: GameMode; label: string }> = [
     { key: 'ultimate', label: 'Ultimate' },
     { key: 'character', label: 'Character' },
   ];
+
+  private readonly historyRoleMarks: Partial<Record<SpecialRoleKey, string>> = {
+    phanBoi: 'PB',
+    soiNguyen: '',
+    soiNguoi: '',
+    soiCon: 'SC',
+    soiBanSoi: '',
+    soiNgu: 'NGU',
+    soiTri: 'ST',
+    baoVe: 'BV',
+    tietLo: 'TL',
+    phuThuy: 'PT',
+    tienTri: 'TT',
+    cungCoi: 'CC',
+    hoangTu: 'HT',
+    tuSi: 'TS',
+    tamLinh: 'TAM',
+    thauCam: 'TC',
+    matNgu: 'MN',
+    cao: 'C',
+    gau: 'G',
+    giaLang: 'GL',
+    lieu: 'L',
+    nhanBan: 'NB',
+    sinhDoi: 'SD',
+    hunter: 'H',
+    cupid: 'CP',
+  };
+
+  private readonly historyRoleClassNames: Partial<Record<SpecialRoleKey, string>> = {
+    phanBoi: 'role-phan-boi',
+    soiNguyen: 'role-soi-nguyen',
+    soiNguoi: 'role-soi-nguoi',
+    soiBanSoi: 'role-soi-nguoi',
+    soiNgu: 'role-soi-ngu',
+  };
 
   private sub?: Subscription;
   private defaults: RoleConfig = {
@@ -147,6 +192,7 @@ export class RoleConfigComponent implements AfterViewInit {
 
   @ViewChild('tabsAnchor') tabsAnchor?: ElementRef;
   @ViewChild('configPanel') configPanel?: ElementRef;
+  @ViewChild('historyBoard') historyBoard?: ElementRef;
 
   get wolfRoles(): SpecialRoleDef[] {
     return this.gameCfg.getWolfRolesForMode(this.activeMode);
@@ -293,6 +339,7 @@ export class RoleConfigComponent implements AfterViewInit {
     this.activeMode = mode;
     this.showConfirmModal = false;
     this.showAddCardModal = false;
+    this.closeHistoryCardModal();
     this.historyFilter = 'all';
     this.gameCfg.setMode(mode);
     this.loadModeState();
@@ -307,6 +354,7 @@ export class RoleConfigComponent implements AfterViewInit {
     this.activeTab = tab;
     this.showConfirmModal = false;
     this.showAddCardModal = false;
+    this.closeHistoryCardModal();
     this.historyFilter = 'all';
     if (tab === 'history') {
       this.stopPanelLoop();
@@ -374,6 +422,26 @@ export class RoleConfigComponent implements AfterViewInit {
   @HostListener('window:resize')
   onWindowResize() {
     this.measureConfigPanel();
+  }
+
+  @HostListener('window:pointermove', ['$event'])
+  onWindowPointerMove(event: PointerEvent) {
+    if (!this.isHistoryRotating) return;
+
+    event.preventDefault();
+    this.rotateHistoryFromPointer(event.clientX, event.clientY);
+  }
+
+  @HostListener('window:pointerup', ['$event'])
+  onWindowPointerUp(event: PointerEvent) {
+    if (!this.isHistoryRotating) return;
+    event.preventDefault();
+    this.stopHistoryRotation();
+  }
+
+  @HostListener('window:pointercancel')
+  onWindowPointerCancel() {
+    this.stopHistoryRotation();
   }
 
   private loadModeState() {
@@ -468,6 +536,7 @@ export class RoleConfigComponent implements AfterViewInit {
   reset() {
     this.showConfirmModal = false;
     this.showAddCardModal = false;
+    this.closeHistoryCardModal(false);
     this.form.reset(this.defaults);
     this.gameCfg.clearExtraCards(this.activeMode);
     this.gameCfg.clearHistory(this.activeMode);
@@ -546,8 +615,68 @@ export class RoleConfigComponent implements AfterViewInit {
     return 'villager';
   }
 
-  onPlayerNameChange(h: HistoryItem) {
+  getHistorySeatClasses(item: HistoryItem): string[] {
+    const name = item.card.name;
+    const classes = [this.getRoleClass(name)];
+    const roleKey = this.getHistoryRoleKey(item);
+    const roleClassName = roleKey ? this.historyRoleClassNames[roleKey] : '';
+
+    if (roleClassName) classes.push(roleClassName);
+
+    return classes;
+  }
+
+  getHistoryRoleMark(item: HistoryItem): string {
+    const roleKey = this.getHistoryRoleKey(item);
+
+    if (roleKey && this.historyRoleMarks[roleKey] !== undefined) {
+      return this.historyRoleMarks[roleKey] || '';
+    }
+
+    const roleClass = this.getRoleClass(item.card.name);
+    if (roleClass === 'wolf') {
+      return '';
+    }
+
+    if (roleClass !== 'special') return '';
+
+    const role = this.villagerRoles.find(roleItem => roleItem.name === item.card.name);
+    if (role && this.historyRoleMarks[role.key]) {
+      return this.historyRoleMarks[role.key] || '';
+    }
+
+    return this.buildFallbackRoleMark(item.card.name);
+  }
+
+  onPlayerNameChange(h: HistoryItem, value?: string) {
+    h.playerName = this.normalizeHistoryPlayerName(value !== undefined ? value : h.playerName || '');
     this.gameCfg.updateHistoryName(h.order, h.playerName || '', this.activeMode);
+  }
+
+  openHistoryCardModal(h: HistoryItem, event?: Event) {
+    if (event) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
+
+    this.selectedHistoryItem = h;
+    this.selectedPlayerName = this.limitHistoryPlayerName(h.playerName || '');
+    this.showHistoryCardModal = true;
+  }
+
+  closeHistoryCardModal(saveName = true) {
+    if (saveName) this.saveSelectedHistoryName();
+    this.showHistoryCardModal = false;
+    this.selectedHistoryItem = null;
+    this.selectedPlayerName = '';
+  }
+
+  onSelectedPlayerNameChange(value: string) {
+    this.selectedPlayerName = this.limitHistoryPlayerName(value);
+  }
+
+  getHistoryPlayerLabel(h: HistoryItem): string {
+    return this.limitHistoryPlayerName(h.playerName || '');
   }
 
   trackRole(_: number, role: { key: SpecialRoleKey }) {
@@ -556,6 +685,89 @@ export class RoleConfigComponent implements AfterViewInit {
 
   trackExtraCard(_: number, card: ExtraCardDef) {
     return card.id;
+  }
+
+  trackHistory(_: number, item: HistoryItem) {
+    return item.order;
+  }
+
+  getHistorySeatStyle(index: number, total: number): { [key: string]: string } {
+    const count = Math.max(total || 1, 1);
+    const angle = this.getHistorySeatAngle(index, count);
+    const radians = angle * Math.PI / 180;
+    const orbitRadius = 47;
+    const x = 50 + Math.cos(radians) * orbitRadius;
+    const y = 50 + Math.sin(radians) * orbitRadius;
+
+    return {
+      left: `${x}%`,
+      top: `${y}%`,
+    };
+  }
+
+  getHistoryPlayerNameStyle(index: number, total: number): { [key: string]: string } {
+    const count = Math.max(total || 1, 1);
+    const angle = this.getHistorySeatAngle(index, count);
+    const radians = angle * Math.PI / 180;
+    const labelMaxLength = count > 28 ? 86 : count > 14 ? 94 : count > 8 ? 98 : 106;
+    const tokenRadius = count > 28 ? 12 : count > 14 ? 21 : count > 8 ? 27 : 31;
+    const labelOffset = tokenRadius + 6;
+    const inwardAngle = angle + 180;
+    const labelX = Math.cos(radians) * -labelOffset;
+    const labelY = Math.sin(radians) * -labelOffset;
+
+    return {
+      left: `calc(50% + ${labelX}px)`,
+      top: `calc(50% + ${labelY}px)`,
+      maxWidth: `${labelMaxLength}px`,
+      transform: `translateY(-50%) rotate(${inwardAngle}deg)`,
+    };
+  }
+
+  getHistoryRotatorArrowStyle(): { [key: string]: string } {
+    const count = Math.max(this.filteredHistory.length || 1, 1);
+    const targetIndex = Math.max(this.filteredHistory.findIndex(item => item.order === 1), 0);
+    const targetAngle = this.getHistorySeatAngle(targetIndex, count);
+
+    return {
+      transform: `rotate(${targetAngle + 90}deg)`,
+    };
+  }
+
+  onHistoryRotatorPointerDown(event: PointerEvent) {
+    if (!this.historyBoard) return;
+    this.startHistoryRotation(event);
+  }
+
+  onHistoryBoardPointerDown(event: PointerEvent) {
+    if (this.shouldIgnoreHistoryBoardRotation(event)) return;
+    if (!this.isPointerOnHistoryDragRing(event.clientX, event.clientY)) return;
+    this.startHistoryRotation(event);
+  }
+
+  private startHistoryRotation(event: PointerEvent) {
+    event.preventDefault();
+    event.stopPropagation();
+    this.isHistoryRotating = true;
+    this.historyRotateLastPointerX = event.clientX;
+    this.historyRotateLastPointerY = event.clientY;
+
+    const target = event.currentTarget as HTMLElement | null;
+    if (target && target.setPointerCapture) {
+      try {
+        target.setPointerCapture(event.pointerId);
+      } catch {
+        // Pointer capture can fail on older mobile browsers; window listeners still handle the drag.
+      }
+    }
+  }
+
+  onHistoryRotatorKeydown(event: KeyboardEvent) {
+    if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+    event.preventDefault();
+    this.historyRotationDeg = this.normalizeDegrees(
+      this.historyRotationDeg + (event.key === 'ArrowLeft' ? -8 : 8)
+    );
   }
 
   thumbPath(fileName: string): string {
@@ -573,6 +785,7 @@ export class RoleConfigComponent implements AfterViewInit {
   }
 
   clearHistory() {
+    this.closeHistoryCardModal(false);
     this.gameCfg.clearHistory(this.activeMode);
     this.reloadHistory();
   }
@@ -583,5 +796,115 @@ export class RoleConfigComponent implements AfterViewInit {
 
   private isWolfRoleName(name: string): boolean {
     return this.gameCfg.isWolfCardName(name, this.activeMode);
+  }
+
+  private stopHistoryRotation() {
+    this.isHistoryRotating = false;
+  }
+
+  private getHistorySeatAngle(index: number, total: number): number {
+    const count = Math.max(total || 1, 1);
+    return -90 + this.historyRotationDeg + (360 * index / count);
+  }
+
+  private shouldIgnoreHistoryBoardRotation(event: PointerEvent): boolean {
+    const target = event.target as HTMLElement | null;
+    if (!target) return true;
+
+    return !!target.closest('.history-player-token, .history-player-name, .history-rotator');
+  }
+
+  private isPointerOnHistoryDragRing(clientX: number, clientY: number): boolean {
+    if (!this.historyBoard) return false;
+    const rect = this.historyBoard.nativeElement.getBoundingClientRect();
+    const centerX = rect.left + rect.width / 2;
+    const centerY = rect.top + rect.height / 2;
+    const radiusX = rect.width / 2;
+    const radiusY = rect.height / 2;
+    if (!radiusX || !radiusY) return false;
+
+    const ellipseDistance = Math.sqrt(
+      Math.pow((clientX - centerX) / radiusX, 2) +
+      Math.pow((clientY - centerY) / radiusY, 2)
+    );
+
+    return ellipseDistance >= 0.82 && ellipseDistance <= 1.04;
+  }
+
+  private rotateHistoryFromPointer(clientX: number, clientY: number) {
+    const center = this.getHistoryBoardCenter();
+    if (!center) return;
+
+    const dx = clientX - this.historyRotateLastPointerX;
+    const dy = clientY - this.historyRotateLastPointerY;
+    if (Math.hypot(dx, dy) < 0.45) return;
+
+    const vx = this.historyRotateLastPointerX - center.x;
+    const vy = this.historyRotateLastPointerY - center.y;
+    const radius = Math.max(Math.hypot(vx, vy), this.historyRotateMinRadius);
+    let delta = ((vx * dy - vy * dx) / (radius * radius)) * 180 / Math.PI;
+
+    if (!Number.isFinite(delta)) return;
+
+    delta = Math.max(-this.historyRotateMaxStep, Math.min(this.historyRotateMaxStep, delta));
+    this.historyRotationDeg = this.normalizeDegrees(this.historyRotationDeg + delta);
+    this.historyRotateLastPointerX = clientX;
+    this.historyRotateLastPointerY = clientY;
+  }
+
+  private getHistoryBoardCenter(): { x: number; y: number } | null {
+    if (!this.historyBoard) return null;
+    const rect = this.historyBoard.nativeElement.getBoundingClientRect();
+    return {
+      x: rect.left + rect.width / 2,
+      y: rect.top + rect.height / 2,
+    };
+  }
+
+  private normalizeDegrees(value: number): number {
+    let normalized = value % 360;
+    if (normalized > 180) normalized -= 360;
+    if (normalized < -180) normalized += 360;
+    return normalized;
+  }
+
+  private saveSelectedHistoryName() {
+    if (!this.selectedHistoryItem) return;
+
+    const name = this.normalizeHistoryPlayerName(this.selectedPlayerName);
+    this.selectedHistoryItem.playerName = name;
+    this.gameCfg.updateHistoryName(this.selectedHistoryItem.order, name, this.activeMode);
+  }
+
+  private limitHistoryPlayerName(value: string): string {
+    return (value || '').slice(0, 8);
+  }
+
+  private normalizeHistoryPlayerName(value: string): string {
+    return this.limitHistoryPlayerName(value).trim();
+  }
+
+  private getHistoryRoleKey(item: HistoryItem): SpecialRoleKey | null {
+    const imageName = (item.card.img || '').toLowerCase();
+
+    if (imageName.indexOf('phanboi') >= 0) return 'phanBoi';
+    if (imageName.indexOf('soi_nguyen') >= 0) return 'soiNguyen';
+    if (imageName.indexOf('soi_nguoi') >= 0) return 'soiNguoi';
+    if (imageName.indexOf('soi_bansoi') >= 0) return 'soiBanSoi';
+    if (imageName.indexOf('soi_ngu.') >= 0 || imageName.indexOf('soi_ngu.jpg') >= 0) return 'soiNgu';
+
+    const role = this.wolfRoles.concat(this.villagerRoles).find(roleItem => roleItem.name === item.card.name);
+    return role ? role.key : null;
+  }
+
+  private buildFallbackRoleMark(name: string): string {
+    const words = (name || '').trim().split(/\s+/).filter(Boolean);
+    if (!words.length) return '';
+
+    return words
+      .map(word => word.charAt(0))
+      .join('')
+      .slice(0, 3)
+      .toUpperCase();
   }
 }

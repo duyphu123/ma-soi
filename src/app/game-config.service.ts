@@ -351,7 +351,7 @@ export class GameConfigService {
 
   updateHistoryName(order: number, name: string, mode: GameMode = this.currentMode) {
     const item = this.histories[mode].find(x => x.order === order);
-    if (item) item.playerName = name;
+    if (item) item.playerName = (name || '').trim().slice(0, 8);
     this.saveState();
   }
 

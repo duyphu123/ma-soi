@@ -146,6 +146,50 @@
   </div>
 </div>
 
+<div *ngIf="showHistoryCardModal && selectedHistoryItem" class="confirm-overlay history-card-overlay" (click)="closeHistoryCardModal()">
+  <div class="confirm-modal history-card-modal" (click)="$event.stopPropagation()">
+    <div class="history-card-modal-head">
+      <input
+        class="history-card-name-input"
+        type="text"
+        [ngModel]="selectedPlayerName"
+        (ngModelChange)="onSelectedPlayerNameChange($event)"
+        [ngModelOptions]="{ standalone: true }"
+        maxlength="8"
+        autocomplete="off"
+        placeholder="Ten"
+      />
+      <button class="history-card-close" type="button" (click)="closeHistoryCardModal()" aria-label="Dong">X</button>
+    </div>
+
+    <div class="history-card-preview">
+      <img
+        *ngIf="!selectedHistoryItem.card.custom"
+        class="history-card-image"
+        [src]="selectedHistoryItem.card.img"
+        [alt]="selectedHistoryItem.card.name"
+        loading="eager"
+        decoding="sync"
+        (error)="onThumbError($event)"
+      />
+
+      <div
+        *ngIf="selectedHistoryItem.card.custom"
+        class="history-card-image history-card-custom-card confirm-custom-card"
+        [class.confirm-custom-card-wolf]="selectedHistoryItem.card.team === 'wolf'"
+        [class.confirm-custom-card-villager]="selectedHistoryItem.card.team === 'villager'"
+      >
+        <span class="confirm-custom-card-title">{{ selectedHistoryItem.card.name }}</span>
+      </div>
+    </div>
+
+    <div class="history-card-meta" [ngClass]="getRoleClass(selectedHistoryItem.card.name)">
+      <span>#{{ selectedHistoryItem.order }}</span>
+      <strong>{{ selectedHistoryItem.card.name }}</strong>
+    </div>
+  </div>
+</div>
+
 <div class="wrap">
   <div class="tabs-anchor" #tabsAnchor>
     <div class="tabs mode-tabs">
@@ -248,6 +292,51 @@
 
     <div *ngIf="!history?.length" class="empty">Chưa có lịch sử rút.</div>
 
+    <div class="history-circle-stage" *ngIf="history?.length">
+      <div
+        #historyBoard
+        class="history-circle-board"
+        [class.history-circle-board-compact]="filteredHistory.length > 8"
+        [class.history-circle-board-dense]="filteredHistory.length > 14"
+        [class.history-circle-board-ultra]="filteredHistory.length > 28"
+        (pointerdown)="onHistoryBoardPointerDown($event)"
+      >
+        <button
+          class="history-rotator"
+          type="button"
+          [class.history-rotator-active]="isHistoryRotating"
+          (pointerdown)="onHistoryRotatorPointerDown($event)"
+          (keydown)="onHistoryRotatorKeydown($event)"
+          aria-label="Xoay vị trí người chơi"
+        >
+          <span class="history-rotator-arrow" [ngStyle]="getHistoryRotatorArrowStyle()"></span>
+        </button>
+
+        <div
+          class="history-seat"
+          *ngFor="let h of filteredHistory; let i = index; trackBy: trackHistory"
+          [ngClass]="getHistorySeatClasses(h)"
+          [ngStyle]="getHistorySeatStyle(i, filteredHistory.length)"
+        >
+          <button class="history-player-token" type="button" [attr.title]="h.card.name" (click)="openHistoryCardModal(h, $event)">
+            <span class="history-player-number">{{ h.order }}</span>
+            <span class="history-role-mark">{{ getHistoryRoleMark(h) }}</span>
+          </button>
+
+          <button
+            *ngIf="getHistoryPlayerLabel(h)"
+            class="history-player-name"
+            type="button"
+            (click)="openHistoryCardModal(h, $event)"
+            [ngStyle]="getHistoryPlayerNameStyle(i, filteredHistory.length)"
+            [attr.aria-label]="'Mo la #' + h.order"
+          >
+            {{ getHistoryPlayerLabel(h) }}
+          </button>
+        </div>
+      </div>
+    </div>
+
     <div class="history-list" *ngIf="history?.length">
       <div class="row" *ngFor="let h of filteredHistory" [ngClass]="getRoleClass(h.card.name)">
         <div class="order">#{{ h.order }}</div>
@@ -256,7 +345,7 @@
           class="player-input"
           [(ngModel)]="h.playerName"
           [ngModelOptions]="{ standalone: true }"
-          maxlength="16"
+          maxlength="8"
           (ngModelChange)="onPlayerNameChange(h)"
         />
       </div>
