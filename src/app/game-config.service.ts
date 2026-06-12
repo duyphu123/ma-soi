@@ -71,6 +71,8 @@ export interface SpecialRoleDef {
   fileName: string;
 }
 
+export const DEFAULT_HISTORY_TOKEN_NAME = 'Token';
+
 export const SPECIAL_ROLE_DEFS: ReadonlyArray<SpecialRoleDef> = [
   { key: 'phanBoi', name: 'Phản bội', fileName: 'phanboi.jpg' },
   { key: 'soiNguyen', name: 'Sói nguyền', fileName: 'soi_nguyen.jpg' },
@@ -353,6 +355,53 @@ export class GameConfigService {
     const item = this.histories[mode].find(x => x.order === order);
     if (item) item.playerName = (name || '').trim().slice(0, 8);
     this.saveState();
+  }
+
+  updateHistoryCard(order: number, card: Card, mode: GameMode = this.currentMode): boolean {
+    const item = this.histories[mode].find(historyItem => historyItem.order === order);
+    if (!item) return false;
+
+    item.card = { ...card };
+    item.at = new Date();
+    this.saveState();
+    return true;
+  }
+
+  swapHistoryItems(firstOrder: number, secondOrder: number, mode: GameMode = this.currentMode): boolean {
+    if (firstOrder === secondOrder) return false;
+
+    const history = this.histories[mode];
+    const first = history.find(item => item.order === firstOrder);
+    const second = history.find(item => item.order === secondOrder);
+    if (!first || !second) return false;
+
+    const firstCard = first.card;
+    const firstAt = first.at;
+    const firstPlayerName = first.playerName;
+
+    first.card = second.card;
+    first.at = second.at;
+    first.playerName = second.playerName;
+    second.card = firstCard;
+    second.at = firstAt;
+    second.playerName = firstPlayerName;
+    this.saveState();
+    return true;
+  }
+
+  deleteHistoryItem(order: number, mode: GameMode = this.currentMode): boolean {
+    const item = this.histories[mode].find(historyItem => historyItem.order === order);
+    if (!item) return false;
+
+    item.card = {
+      name: DEFAULT_HISTORY_TOKEN_NAME,
+      img: '',
+      custom: true,
+    };
+    item.at = new Date();
+    item.playerName = '';
+    this.saveState();
+    return true;
   }
 
   getHistory(mode: GameMode = this.currentMode): HistoryItem[] {

@@ -157,7 +157,6 @@
         [ngModelOptions]="{ standalone: true }"
         maxlength="8"
         autocomplete="off"
-        placeholder="Ten"
       />
       <button class="history-card-close" type="button" (click)="closeHistoryCardModal()" aria-label="Dong">X</button>
     </div>
@@ -178,6 +177,7 @@
         class="history-card-image history-card-custom-card confirm-custom-card"
         [class.confirm-custom-card-wolf]="selectedHistoryItem.card.team === 'wolf'"
         [class.confirm-custom-card-villager]="selectedHistoryItem.card.team === 'villager'"
+        [class.confirm-custom-card-default]="isDefaultHistoryTokenName(selectedHistoryItem.card.name)"
       >
         <span class="confirm-custom-card-title">{{ selectedHistoryItem.card.name }}</span>
       </div>
@@ -186,6 +186,62 @@
     <div class="history-card-meta" [ngClass]="getRoleClass(selectedHistoryItem.card.name)">
       <span>#{{ selectedHistoryItem.order }}</span>
       <strong>{{ selectedHistoryItem.card.name }}</strong>
+    </div>
+  </div>
+</div>
+
+<div
+  *ngIf="historyRoleChangeItem"
+  class="confirm-overlay history-role-overlay"
+  (click)="closeHistoryRolePicker($event)"
+>
+  <div class="confirm-modal history-role-modal" (click)="$event.stopPropagation()">
+    <div class="history-role-head">
+      <h3>Đổi role #{{ historyRoleChangeItem.order }}</h3>
+      <button
+        class="history-card-close"
+        type="button"
+        (click)="closeHistoryRolePicker($event)"
+        aria-label="Dong"
+      >X</button>
+    </div>
+
+    <div class="history-role-subtitle">
+      {{ activeMode === 'ultimate' ? 'Ultimate' : 'Character' }}
+    </div>
+
+    <div class="history-role-hint">Chạm 2 lần vào lá bài để đổi role</div>
+
+    <div class="history-role-grid">
+      <button
+        class="history-role-option"
+        type="button"
+        *ngFor="let card of historyRoleOptions; trackBy: trackHistoryRoleOption"
+        [ngClass]="getRoleClass(card.name)"
+        [class.history-role-option-pending]="isPendingHistoryRoleOption(card)"
+        (click)="chooseHistoryRole(card, $event)"
+      >
+        <span class="history-role-thumb-wrap">
+          <img
+            *ngIf="!card.custom"
+            class="history-role-thumb"
+            [src]="card.thumbImg"
+            [alt]="card.name"
+            loading="eager"
+            decoding="sync"
+            (error)="onThumbError($event)"
+          />
+          <span
+            *ngIf="card.custom"
+            class="history-role-thumb history-role-custom-card confirm-custom-card"
+            [class.confirm-custom-card-wolf]="card.team === 'wolf'"
+            [class.confirm-custom-card-villager]="card.team === 'villager'"
+          >
+            <span class="confirm-custom-card-title">{{ card.name }}</span>
+          </span>
+        </span>
+        <span class="history-role-name">{{ card.name }}</span>
+      </button>
     </div>
   </div>
 </div>
@@ -278,57 +334,102 @@
   </div>
 
   <div *ngIf="activeTab === 'history'">
-    <div class="history-head">
-      <h3>Lịch sử rút - {{ activeMode === 'ultimate' ? 'Ultimate' : 'Character' }}</h3>
-      <button class="btn-clear" (click)="clearHistory()" [disabled]="!history?.length">Xoá lịch sử</button>
-    </div>
-
-    <div class="history-filters" *ngIf="history?.length">
-      <button class="history-filter history-filter-all" [class.active]="historyFilter === 'all'" (click)="setHistoryFilter('all')">#</button>
-      <button class="history-filter history-filter-wolf" [class.active]="historyFilter === 'wolf'" (click)="setHistoryFilter('wolf')">Sói</button>
-      <button class="history-filter history-filter-special" [class.active]="historyFilter === 'special'" (click)="setHistoryFilter('special')">Chức năng</button>
-      <button class="history-filter history-filter-villager" [class.active]="historyFilter === 'villager'" (click)="setHistoryFilter('villager')">Dân</button>
-    </div>
-
     <div *ngIf="!history?.length" class="empty">Chưa có lịch sử rút.</div>
+
+    <div class="history-filter-bar" *ngIf="history?.length">
+      <button
+        class="history-filter-chip"
+        type="button"
+        [class.active]="historyFilter === 'all'"
+        (click)="setHistoryFilter('all')"
+      >#</button>
+      <button
+        class="history-filter-chip history-filter-wolf"
+        type="button"
+        [class.active]="historyFilter === 'wolf'"
+        (click)="setHistoryFilter('wolf')"
+      >Sói</button>
+      <button
+        class="history-filter-chip history-filter-villager"
+        type="button"
+        [class.active]="historyFilter === 'villager'"
+        (click)="setHistoryFilter('villager')"
+      >Dân</button>
+      <button
+        class="history-filter-chip history-filter-special"
+        type="button"
+        [class.active]="historyFilter === 'special'"
+        (click)="setHistoryFilter('special')"
+      >Chức năng</button>
+    </div>
 
     <div class="history-circle-stage" *ngIf="history?.length">
       <div
         #historyBoard
         class="history-circle-board"
-        [class.history-circle-board-compact]="filteredHistory.length > 8"
-        [class.history-circle-board-dense]="filteredHistory.length > 14"
-        [class.history-circle-board-ultra]="filteredHistory.length > 28"
+        [class.history-circle-board-compact]="history.length > 8"
+        [class.history-circle-board-dense]="history.length > 14"
+        [class.history-circle-board-ultra]="history.length > 28"
         (pointerdown)="onHistoryBoardPointerDown($event)"
       >
-        <button
+        <div
           class="history-rotator"
-          type="button"
+          role="button"
+          tabindex="0"
           [class.history-rotator-active]="isHistoryRotating"
           (pointerdown)="onHistoryRotatorPointerDown($event)"
           (keydown)="onHistoryRotatorKeydown($event)"
           aria-label="Xoay vị trí người chơi"
         >
-          <span class="history-rotator-arrow" [ngStyle]="getHistoryRotatorArrowStyle()"></span>
+        </div>
+
+        <button
+          class="history-reverse-button"
+          type="button"
+          (pointerdown)="onHistoryReversePointerDown($event)"
+          (click)="reverseHistoryDirection($event)"
+          aria-label="Dao chieu vi tri"
+        >
+          <span aria-hidden="true"></span>
         </button>
 
         <div
           class="history-seat"
-          *ngFor="let h of filteredHistory; let i = index; trackBy: trackHistory"
+          *ngFor="let h of history; let i = index; trackBy: trackHistory"
           [ngClass]="getHistorySeatClasses(h)"
-          [ngStyle]="getHistorySeatStyle(i, filteredHistory.length)"
+          [class.history-seat-filtered-out]="!isHistoryItemVisible(h)"
+          [ngStyle]="getHistorySeatStyle(i, history.length)"
         >
-          <button class="history-player-token" type="button" [attr.title]="h.card.name" (click)="openHistoryCardModal(h, $event)">
+          <button
+            class="history-player-token"
+            type="button"
+            [attr.title]="h.card.name"
+            (pointerdown)="onHistoryTokenPointerDown(h, $event)"
+            (click)="onHistoryTokenClick(h, $event)"
+            (contextmenu)="onHistoryTokenContextMenu(h, $event)"
+          >
             <span class="history-player-number">{{ h.order }}</span>
-            <span class="history-role-mark">{{ getHistoryRoleMark(h) }}</span>
+            <span class="history-role-mark" [ngStyle]="getHistoryRoleMarkStyle(h, history.length)">{{ getHistoryRoleMark(h) }}</span>
           </button>
+
+          <div
+            *ngIf="isHistoryActionMenuOpen(h)"
+            class="history-token-actions"
+            [ngStyle]="getHistoryActionMenuStyle(i, history.length)"
+            (click)="$event.stopPropagation()"
+            (pointerdown)="$event.stopPropagation()"
+          >
+            <button type="button" (click)="startHistorySwap(h, $event)">Đổi chỗ</button>
+            <button type="button" (click)="openHistoryRolePicker(h, $event)">Đổi role</button>
+            <button class="history-token-action-delete" type="button" (click)="deleteHistoryToken(h, $event)">Xóa</button>
+          </div>
 
           <button
             *ngIf="getHistoryPlayerLabel(h)"
             class="history-player-name"
             type="button"
             (click)="openHistoryCardModal(h, $event)"
-            [ngStyle]="getHistoryPlayerNameStyle(i, filteredHistory.length)"
+            [ngStyle]="getHistoryPlayerNameStyle(i, history.length)"
             [attr.aria-label]="'Mo la #' + h.order"
           >
             {{ getHistoryPlayerLabel(h) }}
